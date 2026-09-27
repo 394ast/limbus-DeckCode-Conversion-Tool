@@ -68,7 +68,7 @@ textarea { width:100%; resize:vertical; padding:10px; border:1px solid #aaa; bor
 <body>
 <main>
 <h1>リンバス編成コード変換ツール</h1>
-<p class="note">現在 https://wikiwiki.jp/lcbwiki/ の人格EGOのid番号を一旦持ってきているのでゲーム内id番号と異なっているというバグが起こっている可能性が高いです、近日中に確認します<br>https://youtu.be/X05CKPkFdBI?si=OVlXrTkbFeFfwUty を参考に作成しました</p>
+<p class="note">現在 https://wikiwiki.jp/lcbwiki/ の人格EGOのid番号を一旦持ってきているのでゲーム内id番号と異なっているというバグが起こっている可能性があります、近日中に確認します<br>https://youtu.be/X05CKPkFdBI?si=OVlXrTkbFeFfwUty を参考に作成しました</p>
 
 <div class="tabs">
   <button class="tab-button active" data-tab="generate">編成コード生成</button>
@@ -596,6 +596,27 @@ function makeEgoGeneration() {
         img.dataset.selected = String(rank === 1 && id === group.egoBase + 1);
         if (rank === 1 && id === group.egoBase + 1) img.classList.add("selected");
         img.addEventListener("click", () => {
+          // rank1 は従来通り、必ず1枚を選択状態にする。
+          if (rank === 1) {
+            images.querySelectorAll(".selectable-image").forEach(x => {
+              x.classList.remove("selected");
+              x.dataset.selected = "false";
+              x.src = getEgoImage(Number(x.dataset.id), false);
+            });
+            img.classList.add("selected");
+            img.dataset.selected = "true";
+            img.src = getEgoImage(id, true);
+            return;
+          }
+
+          // rank2～5 は、選択中の画像をもう一度クリックすると未選択に戻せる。
+          if (img.dataset.selected === "true") {
+            img.classList.remove("selected");
+            img.dataset.selected = "false";
+            img.src = getEgoImage(id, false);
+            return;
+          }
+
           images.querySelectorAll(".selectable-image").forEach(x => {
             x.classList.remove("selected");
             x.dataset.selected = "false";
