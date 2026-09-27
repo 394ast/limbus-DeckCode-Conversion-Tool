@@ -1,0 +1,782 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>リンバス編成コード変換ツール</title>
+<style>
+* { box-sizing: border-box; }
+body { margin:0; padding:20px; font-family:system-ui,-apple-system,"Segoe UI",sans-serif; background:#f3f3f3; color:#222; }
+main { max-width:1400px; margin:0 auto; }
+h1 { font-size:24px; margin:0 0 12px; }
+h2 { font-size:20px; margin:0 0 12px; }
+h3 { font-size:16px; margin:0 0 8px; }
+button { border:1px solid #777; border-radius:6px; padding:8px 14px; background:#fff; cursor:pointer; }
+button:hover { background:#eee; }
+.primary { background:#222; color:#fff; border-color:#222; }
+.primary:hover { background:#444; }
+.tabs { display:flex; gap:6px; margin-bottom:14px; }
+.tab-button { padding:10px 18px; font-weight:600; }
+.tab-button.active { background:#222; color:#fff; }
+.panel { display:none; background:#fff; border:1px solid #ccc; border-radius:10px; padding:16px; }
+.panel.active { display:block; }
+.toolbar { display:flex; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:14px; }
+.toolbar label { display:flex; align-items:center; gap:6px; }
+.code-row { display:flex; gap:8px; margin-bottom:16px; }
+.code-row textarea { flex:1; min-height:72px; }
+textarea { width:100%; resize:vertical; padding:10px; border:1px solid #aaa; border-radius:6px; font:14px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace; }
+.status { margin:12px 0; padding:10px 12px; background:#fafafa; border:1px solid #ccc; border-radius:8px; white-space:pre-wrap; }
+.identity-generation { display:flex; flex-direction:column; gap:12px; }
+.identity-group { border:1px solid #ccc; border-radius:8px; padding:10px; background:#fafafa; }
+.identity-title { display:flex; align-items:center; gap:8px; margin-bottom:8px; font-weight:700; }
+.order-input { width:155px; padding:5px; }
+.image-list { display:flex; flex-wrap:wrap; gap:6px; }
+.selectable-image { display:block; border:2px solid transparent; border-radius:5px; cursor:pointer; background:#ddd; }
+.selectable-image.selected { border-color:#ff9800; box-shadow:0 0 0 2px #ff9800; }
+.identity-image { width:86px; height:auto; }
+.ego-generation { display:flex; flex-direction:column; gap:10px; }
+.ego-row { display:flex; align-items:stretch; border:1px solid #ccc; border-radius:8px; overflow-x:auto; background:#fafafa; }
+.ego-rank { flex:0 0 150px; min-height:108px; padding:7px; border-right:1px solid #bbb; }
+.ego-rank:last-child { border-right:0; }
+.ego-rank-title { font-weight:700; margin-bottom:5px; }
+.ego-images { display:flex; flex-wrap:wrap; gap:5px; }
+.ego-image { width:72px; height:72px; object-fit:cover; }
+.rank-1 { background:#dff2df; } .rank-2 { background:#e0ebfa; } .rank-3 { background:#fff4b8; } .rank-4 { background:#eadcf5; } .rank-5 { background:#f4dada; }
+.restore-identity { display:grid; grid-template-columns:repeat(6,minmax(120px,1fr)); gap:10px; margin-bottom:18px; }
+.restore-identity-group { min-width:0; text-align:center; }
+.restore-identity-content { display:flex; align-items:center; justify-content:center; gap:5px; min-height:100px; }
+.restore-order { font-weight:700; min-width:24px; }
+.restore-identity-image { width:86px; height:auto; }
+.restore-ego { display:flex; flex-direction:column; gap:8px; }
+.restore-ego-row { display:grid; grid-template-columns:repeat(5, minmax(100px,1fr)); gap:6px; }
+.restore-ego-slot { min-height:86px; display:flex; align-items:center; justify-content:center; border-radius:5px; }
+.restore-ego-slot img { width:72px; height:72px; object-fit:cover; }
+.empty-slot { min-height:86px; }
+.small-note { color:#666; font-size:13px; }
+.loading { padding:20px; text-align:center; color:#666; }
+@media (max-width:900px) {
+  .restore-identity { grid-template-columns:repeat(3,minmax(110px,1fr)); }
+}
+@media (max-width:600px) {
+  body { padding:10px; }
+  .restore-identity { grid-template-columns:repeat(2,minmax(110px,1fr)); }
+  .identity-image { width:70px; }
+  .ego-rank { flex-basis:130px; }
+}
+</style>
+</head>
+<body>
+<main>
+<h1>リンバス編成コード変換ツール</h1>
+<p class="note">現在 https://wikiwiki.jp/lcbwiki/ の人格EGOのid番号を一旦持ってきているのでゲーム内id番号と異なっているというバグが起こっている可能性が高いです、近日中に確認します<br>https://youtu.be/X05CKPkFdBI?si=OVlXrTkbFeFfwUty を参考に作成しました</p>
+
+<div class="tabs">
+  <button class="tab-button active" data-tab="generate">編成コード生成</button>
+  <button class="tab-button" data-tab="restore">編成コード復元</button>
+</div>
+
+<section id="generate" class="panel active">
+  <div class="toolbar">
+    <label><input type="checkbox" id="recordOrder"> 編成順を記録する</label>
+    <button class="primary" id="generateCodeBtn">編成コードを生成</button>
+    <button id="generateCopyBtn">コードをコピー</button>
+  </div>
+  <textarea id="generatedCode" readonly placeholder="ここに編成コードが表示されます"></textarea>
+  
+
+  <h2>Identity</h2>
+  <div id="identityGeneration" class="identity-generation"><div class="loading">読み込み中...</div></div>
+
+  <h2 style="margin-top:20px;">E.G.O.</h2>
+  <div id="egoGeneration" class="ego-generation"><div class="loading">読み込み中...</div></div>
+</section>
+
+<section id="restore" class="panel">
+  <div class="code-row">
+    <textarea id="restoreCode" placeholder="編成コードを入力"></textarea>
+    <button class="primary" id="restoreBtn">復元</button>
+  </div>
+  <div class="status" id="restoreStatus">編成コードを入力してください。</div>
+  <div id="restoreResult"></div>
+</section>
+</main>
+
+<script>
+"use strict";
+
+// 各7値セットのビット幅。合計46bit × 12 = 552bit。
+const FIELD_WIDTHS = [7, 4, 7, 7, 7, 7, 7];
+const GROUPS = 12;
+const VALUE_COUNT = 84;
+const RAW_BYTE_LENGTH = 70;
+
+const LENGTH_BASE = [3,4,5,6,7,8,9,10,11,13,15,17,19,23,27,31,35,43,51,59,67,83,99,115,131,163,195,227,258];
+const LENGTH_EXTRA = [0,0,0,0,0,0,0,0,1,1,1,1,2,2,2,2,3,3,3,3,4,4,4,4,5,5,5,5,0];
+const DIST_BASE = [1,2,3,4,5,7,9,13,17,25,33,49,65,97,129,193,257,385,513,769,1025,1537,2049,3073,4097,6145,8193,12289,16385,24577];
+const DIST_EXTRA = [0,0,0,0,1,1,2,2,3,3,4,4,5,5,6,6,7,7,8,8,9,9,10,10,11,11,12,12,13,13];
+
+function maxForWidth(width) {
+  return (1 << width) - 1;
+}
+
+function parse84(text) {
+  const tokens = text.trim().split(/[\s,，、]+/).filter(Boolean);
+  if (tokens.length !== VALUE_COUNT) {
+    throw new Error(`整数は84個必要です。現在 ${tokens.length} 個です。`);
+  }
+
+  const values = tokens.map((token, index) => {
+    if (!/^\d+$/.test(token)) {
+      throw new Error(`${index + 1}番目が整数ではありません: ${token}`);
+    }
+    const value = Number(token);
+    const width = FIELD_WIDTHS[index % FIELD_WIDTHS.length];
+    const max = maxForWidth(width);
+    if (!Number.isSafeInteger(value) || value < 0 || value > max) {
+      throw new Error(`${index + 1}番目の値 ${token} は ${width}bit の範囲 0～${max} を超えています。`);
+    }
+    return value;
+  });
+  return values;
+}
+
+function setBit(bytes, bitPos, bit) {
+  const byteIndex = Math.floor(bitPos / 8);
+  const shift = 7 - (bitPos % 8);
+  if (bit) bytes[byteIndex] |= (1 << shift);
+}
+
+function getBit(bytes, bitPos) {
+  const byteIndex = Math.floor(bitPos / 8);
+  const shift = 7 - (bitPos % 8);
+  return (bytes[byteIndex] >> shift) & 1;
+}
+
+function pack84(values) {
+  const bytes = new Uint8Array(RAW_BYTE_LENGTH);
+  let bitPos = 1; // 先頭1bitは0
+
+  for (let i = 0; i < VALUE_COUNT; i++) {
+    const width = FIELD_WIDTHS[i % FIELD_WIDTHS.length];
+    const value = values[i];
+    for (let b = width - 1; b >= 0; b--) {
+      setBit(bytes, bitPos++, (value >> b) & 1);
+    }
+  }
+
+  // bitPos は559まで進む。残り7bitは0のまま。
+  if (bitPos !== 553) {
+    throw new Error(`内部エラー: bit位置が想定外です (${bitPos})`);
+  }
+  return bytes;
+}
+
+function unpack70(bytes) {
+  if (bytes.length !== RAW_BYTE_LENGTH) {
+    throw new Error(`中間データは70バイトである必要があります。現在 ${bytes.length} バイトです。`);
+  }
+  if (getBit(bytes, 0) !== 0) {
+    throw new Error("先頭のパディングbitが0ではありません。");
+  }
+  for (let p = 553; p < 560; p++) {
+    if (getBit(bytes, p) !== 0) {
+      throw new Error("末尾のパディング7bitが0ではありません。");
+    }
+  }
+
+  const values = [];
+  let bitPos = 1;
+  for (let i = 0; i < VALUE_COUNT; i++) {
+    const width = FIELD_WIDTHS[i % FIELD_WIDTHS.length];
+    let value = 0;
+    for (let b = width - 1; b >= 0; b--) {
+      value |= getBit(bytes, bitPos++) << b;
+    }
+    values.push(value);
+  }
+  return values;
+}
+
+function bytesToBase64(bytes) {
+  let binary = "";
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+  }
+  return btoa(binary);
+}
+
+function base64ToBytes(text) {
+  let normalized = text.trim();
+  if (!normalized) throw new Error("文字列が空です。");
+  // URL等から来た場合も扱えるようにする。
+  normalized = normalized.replace(/\s/g, "").replace(/-/g, "+").replace(/_/g, "/");
+  while (normalized.length % 4 !== 0) normalized += "=";
+  let binary;
+  try {
+    binary = atob(normalized);
+  } catch {
+    throw new Error("Base64として解釈できません。");
+  }
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+
+function utf8Encode(text) {
+  return new TextEncoder().encode(text);
+}
+
+function utf8Decode(bytes) {
+  return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+}
+
+function reverseBits(value, count) {
+  let result = 0;
+  for (let i = 0; i < count; i++) {
+    result = (result << 1) | ((value >> i) & 1);
+  }
+  return result;
+}
+
+class BitWriter {
+  constructor() {
+    this.bytes = [];
+    this.buffer = 0;
+    this.count = 0;
+  }
+
+  writeBits(value, count) {
+    if (count === 0) return;
+    const mask = count === 32 ? 0xffffffff : (2 ** count) - 1;
+    this.buffer |= (value & mask) * (2 ** this.count);
+    this.count += count;
+
+    while (this.count >= 8) {
+      this.bytes.push(this.buffer & 0xff);
+      this.buffer = Math.floor(this.buffer / 256);
+      this.count -= 8;
+    }
+  }
+
+  finish() {
+    if (this.count > 0) this.bytes.push(this.buffer & 0xff);
+    return new Uint8Array(this.bytes);
+  }
+}
+
+// RFC 1951の固定ハフマン表。
+function fixedLiteralCode(symbol) {
+  if (symbol <= 143) return { code: 0x30 + symbol, bits: 8 };
+  if (symbol <= 255) return { code: 0x190 + (symbol - 144), bits: 9 };
+  if (symbol <= 279) return { code: symbol - 256, bits: 7 };
+  return { code: 0xc0 + (symbol - 280), bits: 8 };
+}
+
+function emitFixedLiteral(writer, symbol) {
+  const h = fixedLiteralCode(symbol);
+  writer.writeBits(reverseBits(h.code, h.bits), h.bits);
+}
+
+function findLengthSymbol(length) {
+  for (let i = LENGTH_BASE.length - 1; i >= 0; i--) {
+    if (length >= LENGTH_BASE[i]) return 257 + i;
+  }
+  throw new Error("不正な一致長");
+}
+
+function findDistanceSymbol(distance) {
+  for (let i = DIST_BASE.length - 1; i >= 0; i--) {
+    if (distance >= DIST_BASE[i]) return i;
+  }
+  throw new Error("不正な距離");
+}
+
+// 短い96バイトの入力なので、単純な貪欲法で十分です。
+// 同じ長さなら、より近い距離（最初に見つかったもの）を使います。
+function makeLz77Tokens(input) {
+  const tokens = [];
+  let pos = 0;
+
+  while (pos < input.length) {
+    let bestLength = 0;
+    let bestDistance = 0;
+    const maxDistance = Math.min(pos, 32768);
+
+    for (let distance = 1; distance <= maxDistance; distance++) {
+      if (input[pos] !== input[pos - distance]) continue;
+
+      let length = 0;
+      while (
+        length < 258 &&
+        pos + length < input.length &&
+        input[pos + length] === input[pos - distance + length]
+      ) {
+        length++;
+      }
+
+      if (length >= 3 && length > bestLength) {
+        bestLength = length;
+        bestDistance = distance;
+      }
+    }
+
+    if (bestLength >= 3) {
+      tokens.push({ type: "match", length: bestLength, distance: bestDistance });
+      pos += bestLength;
+    } else {
+      tokens.push({ type: "literal", value: input[pos] });
+      pos++;
+    }
+  }
+  return tokens;
+}
+
+function deflateFixed(input) {
+  const writer = new BitWriter();
+
+  // BFINAL=1, BTYPE=01（固定ハフマン）
+  writer.writeBits(1, 1);
+  writer.writeBits(1, 2);
+
+  const tokens = makeLz77Tokens(input);
+  for (const token of tokens) {
+    if (token.type === "literal") {
+      emitFixedLiteral(writer, token.value);
+      continue;
+    }
+
+    const lengthSymbol = findLengthSymbol(token.length);
+    const lengthIndex = lengthSymbol - 257;
+    emitFixedLiteral(writer, lengthSymbol);
+    writer.writeBits(token.length - LENGTH_BASE[lengthIndex], LENGTH_EXTRA[lengthIndex]);
+
+    const distanceSymbol = findDistanceSymbol(token.distance);
+    writer.writeBits(reverseBits(distanceSymbol, 5), 5);
+    writer.writeBits(token.distance - DIST_BASE[distanceSymbol], DIST_EXTRA[distanceSymbol]);
+  }
+
+  // End-of-block
+  emitFixedLiteral(writer, 256);
+  return writer.finish();
+}
+
+function crc32(bytes) {
+  let crc = 0xffffffff;
+  for (const byte of bytes) {
+    crc ^= byte;
+    for (let i = 0; i < 8; i++) {
+      crc = (crc >>> 1) ^ ((crc & 1) ? 0xedb88320 : 0);
+    }
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+function writeU32LE(value) {
+  return new Uint8Array([
+    value & 0xff,
+    (value >>> 8) & 0xff,
+    (value >>> 16) & 0xff,
+    (value >>> 24) & 0xff
+  ]);
+}
+
+function makeGzip(deflateBytes, originalBytes) {
+  // MTIME=0, XFL=0, OS=10。既知の出力と合わせるためOSは10。
+  const header = new Uint8Array([0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0a]);
+  const trailer = new Uint8Array(8);
+  trailer.set(writeU32LE(crc32(originalBytes)), 0);
+  trailer.set(writeU32LE(originalBytes.length >>> 0), 4);
+
+  const result = new Uint8Array(header.length + deflateBytes.length + trailer.length);
+  result.set(header, 0);
+  result.set(deflateBytes, header.length);
+  result.set(trailer, header.length + deflateBytes.length);
+  return result;
+}
+
+function encodeValuesToString(values) {
+  const raw70 = pack84(values);
+  const innerBase64 = bytesToBase64(raw70);
+  const innerBytes = utf8Encode(innerBase64);
+  const deflate = deflateFixed(innerBytes);
+  const gzip = makeGzip(deflate, innerBytes);
+  return bytesToBase64(gzip);
+}
+
+async function ungzip(bytes) {
+  if (typeof DecompressionStream === "undefined") {
+    throw new Error("このブラウザはDecompressionStreamに対応していません。Edge/Chromeの新しい版を使用してください。");
+  }
+  const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"));
+  const buffer = await new Response(stream).arrayBuffer();
+  return new Uint8Array(buffer);
+}
+
+async function decodeStringToValues(text) {
+  const gzip = base64ToBytes(text);
+  if (gzip.length < 18) throw new Error("gzipデータが短すぎます。");
+  if (gzip[0] !== 0x1f || gzip[1] !== 0x8b || gzip[2] !== 0x08) {
+    throw new Error("gzip形式ではありません。");
+  }
+
+  // DecompressionStream側でCRC/ISIZEも検証されます。
+  const innerBytes = await ungzip(gzip);
+  const innerBase64 = utf8Decode(innerBytes);
+  const raw70 = base64ToBytes(innerBase64);
+  return unpack70(raw70);
+}
+
+function formatValues(values) {
+  return values.join(",");
+}
+
+
+
+const CSV_URLS = {
+  identity: "https://raw.githubusercontent.com/394ast/limbus.search/main/Limbus%20data%20-%20Identity.csv",
+  ego: "https://raw.githubusercontent.com/394ast/limbus.search/main/Limbus%20data%20-%20EGO.csv"
+};
+
+const IDENTITY_NAMES = ["イサン", "ファウスト", "ドンキホーテ", "良秀", "ムルソー", "ホンル", "ヒースクリフ", "イシュメール", "ロージャ", "シンクレア", "ウーティス", "グレゴール"];
+const EGO_RANK_NAMES = { 1:"ZAYIN", 2:"TETH", 3:"HE", 4:"WAW", 5:"ALEPH" };
+
+const APP_GROUPS = Array.from({length:12}, (_, i) => {
+  const identityBase = i < 9 ? (i + 1) * 1000 : (i + 1) * 1000;
+  return { index:i, identityBase, egoBase:identityBase + 12000 };
+});
+
+let identityData = [];
+let egoData = [];
+let identityById = new Map();
+let egoById = new Map();
+
+function parseCsvLine(line) {
+  const cells = [];
+  let cell = "";
+  let quoted = false;
+  for (let i=0; i<line.length; i++) {
+    const c = line[i];
+    if (c === '"') {
+      if (quoted && line[i+1] === '"') { cell += '"'; i++; }
+      else quoted = !quoted;
+    } else if (c === "," && !quoted) {
+      cells.push(cell); cell = "";
+    } else {
+      cell += c;
+    }
+  }
+  cells.push(cell);
+  return cells;
+}
+
+function parseCsv(text) {
+  const lines = text.replace(/^\uFEFF/, "").split(/\r?\n/).filter(line => line.trim() !== "");
+  if (!lines.length) return [];
+  const headers = parseCsvLine(lines[0]).map(x => x.trim());
+  return lines.slice(1).map(line => {
+    const cells = parseCsvLine(line);
+    const row = {};
+    headers.forEach((h,i) => row[h] = (cells[i] ?? "").trim());
+    return row;
+  });
+}
+
+async function loadCsv(url) {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`CSVの取得に失敗しました: ${response.status}`);
+  return parseCsv(await response.text());
+}
+
+function identityGroupIndex(id) {
+  return Math.floor(id / 1000) - 1;
+}
+
+function egoGroupIndex(id) {
+  return Math.floor(id / 1000) - 13;
+}
+
+function getIdentityImage(id, selected) {
+  return `https://raw.githubusercontent.com/394ast/limbus.sharetool/main/${selected ? "Identities.After" : "Identities.Mono.After"}/${id}.3${selected ? "" : ".mono"}.jpg`;
+}
+
+function getEgoImage(id, selected) {
+  return `https://raw.githubusercontent.com/394ast/limbus.sharetool/main/${selected ? "EGO" : "EGO.Mono"}/${id}${selected ? "" : ".mono"}.jpg`;
+}
+
+function makeImage(src, className, alt) {
+  const img = document.createElement("img");
+  img.src = src;
+  img.alt = alt;
+  img.className = className;
+  return img;
+}
+
+function makeIdentityGeneration() {
+  const root = document.getElementById("identityGeneration");
+  root.innerHTML = "";
+  APP_GROUPS.forEach(group => {
+    const ids = identityData.filter(row => identityGroupIndex(Number(row.id)) === group.index)
+      .sort((a,b) => Number(a.id) - Number(b.id));
+    const section = document.createElement("div");
+    section.className = "identity-group";
+    section.dataset.groupIndex = group.index;
+
+    const title = document.createElement("div");
+    title.className = "identity-title";
+    const order = document.createElement("select");
+    order.className = "order-input"; order.dataset.groupIndex = group.index;
+    order.hidden = !document.getElementById("recordOrder").checked;
+    const placeholder = document.createElement("option");
+    placeholder.value = "";
+    placeholder.textContent = "ここに編成順を入力";
+    placeholder.selected = true;
+    order.append(placeholder);
+    for (let i = 1; i <= 12; i++) {
+      const option = document.createElement("option");
+      option.value = String(i);
+      option.textContent = String(i);
+      order.append(option);
+    }
+    title.append(order);
+    const name = document.createElement("span");
+    name.textContent = IDENTITY_NAMES[group.index];
+    title.append(name);
+    section.append(title);
+
+    const list = document.createElement("div");
+    list.className = "image-list";
+    ids.forEach(row => {
+      const id = Number(row.id);
+      const img = makeImage(getIdentityImage(id, id === group.identityBase + 1), "selectable-image identity-image", String(id));
+      img.dataset.id = id;
+      img.dataset.groupIndex = group.index;
+      img.dataset.selected = String(id === group.identityBase + 1);
+      if (id === group.identityBase + 1) img.classList.add("selected");
+      img.addEventListener("click", () => {
+        list.querySelectorAll(".selectable-image").forEach(x => {
+          x.classList.remove("selected");
+          x.dataset.selected = "false";
+          x.src = getIdentityImage(Number(x.dataset.id), false);
+        });
+        img.classList.add("selected");
+        img.dataset.selected = "true";
+        img.src = getIdentityImage(id, true);
+      });
+      list.append(img);
+    });
+    section.append(list);
+    root.append(section);
+  });
+}
+
+function makeEgoGeneration() {
+  const root = document.getElementById("egoGeneration");
+  root.innerHTML = "";
+  APP_GROUPS.forEach(group => {
+    const row = document.createElement("div");
+    row.className = "ego-row";
+    row.dataset.groupIndex = group.index;
+    for (let rank=1; rank<=5; rank++) {
+      const rankBox = document.createElement("div");
+      rankBox.className = `ego-rank rank-${rank}`;
+      const heading = document.createElement("div");
+      heading.className = "ego-rank-title";
+      heading.textContent = EGO_RANK_NAMES[rank];
+      rankBox.append(heading);
+      const images = document.createElement("div");
+      images.className = "ego-images";
+      const rows = egoData.filter(r => egoGroupIndex(Number(r.id)) === group.index && Number(r.rank) === rank)
+        .sort((a,b) => Number(a.id) - Number(b.id));
+      rows.forEach(rowData => {
+        const id = Number(rowData.id);
+        const img = makeImage(getEgoImage(id, rank === 1 && id === group.egoBase + 1), "selectable-image ego-image", String(id));
+        img.dataset.id = id;
+        img.dataset.rank = rank;
+        img.dataset.selected = String(rank === 1 && id === group.egoBase + 1);
+        if (rank === 1 && id === group.egoBase + 1) img.classList.add("selected");
+        img.addEventListener("click", () => {
+          images.querySelectorAll(".selectable-image").forEach(x => {
+            x.classList.remove("selected");
+            x.dataset.selected = "false";
+            x.src = getEgoImage(Number(x.dataset.id), false);
+          });
+          img.classList.add("selected");
+          img.dataset.selected = "true";
+          img.src = getEgoImage(id, true);
+        });
+        images.append(img);
+      });
+      rankBox.append(images);
+      row.append(rankBox);
+    }
+    root.append(row);
+  });
+}
+
+function getGenerationValues() {
+  const values = [];
+  APP_GROUPS.forEach(group => {
+    const identity = document.querySelector(`.identity-group[data-group-index="${group.index}"] .identity-image.selected`);
+    if (!identity) throw new Error(`${group.identityBase}番台のIdentityが選択されていません。`);
+    const orderInput = document.querySelector(`.order-input[data-group-index="${group.index}"]`);
+    const order = document.getElementById("recordOrder").checked ? (Number(orderInput.value) || 0) : 0;
+    if (order < 0 || order > 12 || !Number.isInteger(order)) throw new Error("編成順は1～12の整数、または空欄である必要があります。");
+    values.push(Number(identity.dataset.id) % 100);
+    values.push(order);
+    const egoRow = document.querySelector(`.ego-row[data-group-index="${group.index}"]`);
+    for (let rank=1; rank<=5; rank++) {
+      const selected = egoRow.querySelector(`.ego-rank:nth-child(${rank}) .ego-image.selected`);
+      values.push(selected ? Number(selected.dataset.id) % 100 : 0);
+    }
+  });
+  return values;
+}
+
+function findIdentityId(base, low) {
+  const id = base + low;
+  return identityById.has(id) ? id : null;
+}
+
+function findEgoId(base, rank, low) {
+  if (low === 0) return null;
+  const id = base + low;
+  const row = egoById.get(id);
+  if (!row || Number(row.rank) !== rank) return null;
+  return id;
+}
+
+function restore(values) {
+  if (values.length !== 84) throw new Error("84個の整数が必要です。");
+  const groups = [];
+  for (let i=0; i<12; i++) {
+    const v = values.slice(i*7, i*7+7);
+    const identityId = findIdentityId(APP_GROUPS[i].identityBase, v[0]);
+    if (identityId === null) throw new Error(`${APP_GROUPS[i].identityBase}番台のIdentity IDがCSVに存在しません: ${v[0]}`);
+    const egos = [];
+    for (let rank=1; rank<=5; rank++) {
+      const egoId = findEgoId(APP_GROUPS[i].egoBase, rank, v[rank+1]);
+      if (v[rank+1] !== 0 && egoId === null) throw new Error(`${APP_GROUPS[i].egoBase}番台 rank${rank} のE.G.O. IDがCSVに存在しません: ${v[rank+1]}`);
+      egos.push(egoId);
+    }
+    groups.push({ identityId, order:v[1], egos });
+  }
+  renderRestore(groups);
+}
+
+function renderRestore(groups) {
+  const root = document.getElementById("restoreResult");
+  root.innerHTML = "";
+  const orderVisible = groups.some(g => g.order !== 0);
+
+  const h2 = document.createElement("h2"); h2.textContent = "Identity";
+  root.append(h2);
+  const identities = document.createElement("div");
+  identities.className = "restore-identity";
+  groups.forEach(g => {
+    const box = document.createElement("div");
+    box.className = "restore-identity-group";
+    const content = document.createElement("div");
+    content.className = "restore-identity-content";
+    if (orderVisible) {
+      const order = document.createElement("span");
+      order.className = "restore-order";
+      order.textContent = g.order;
+      content.append(order);
+    }
+    content.append(makeImage(getIdentityImage(g.identityId, true), "restore-identity-image", String(g.identityId)));
+    box.append(content);
+    identities.append(box);
+  });
+  root.append(identities);
+
+  const eh = document.createElement("h2"); eh.textContent = "E.G.O.";
+  root.append(eh);
+  const egoRoot = document.createElement("div");
+  egoRoot.className = "restore-ego";
+  groups.forEach((g,i) => {
+    const row = document.createElement("div");
+    row.className = "restore-ego-row";
+    for (let rank=1; rank<=5; rank++) {
+      const slot = document.createElement("div");
+      slot.className = `restore-ego-slot rank-${rank}`;
+      const id = g.egos[rank-1];
+      if (id !== null) slot.append(makeImage(getEgoImage(id, true), "", String(id)));
+      row.append(slot);
+    }
+    egoRoot.append(row);
+  });
+  root.append(egoRoot);
+}
+
+function setGenerateStatus(message, error=false) {
+  const el = document.getElementById("generateStatus");
+  el.textContent = message;
+  el.style.borderColor = error ? "#d66" : "#ccc";
+}
+function setRestoreStatus(message, error=false) {
+  const el = document.getElementById("restoreStatus");
+  el.textContent = message;
+  el.style.borderColor = error ? "#d66" : "#ccc";
+}
+
+async function generateCode() {
+  try {
+    const values = getGenerationValues();
+    const code = encodeValuesToString(values);
+    document.getElementById("generatedCode").value = code;
+    setGenerateStatus("編成コードを生成しました。");
+  } catch (e) { setGenerateStatus(e.message, true); }
+}
+
+document.querySelectorAll(".tab-button").forEach(button => {
+  button.addEventListener("click", () => {
+    document.querySelectorAll(".tab-button").forEach(x => x.classList.remove("active"));
+    document.querySelectorAll(".panel").forEach(x => x.classList.remove("active"));
+    button.classList.add("active");
+    document.getElementById(button.dataset.tab).classList.add("active");
+  });
+});
+
+document.getElementById("recordOrder").addEventListener("change", e => {
+  document.querySelectorAll(".order-input").forEach(input => input.hidden = !e.target.checked);
+});
+
+document.getElementById("generateCodeBtn").addEventListener("click", generateCode);
+
+document.getElementById("generateCopyBtn").addEventListener("click", async () => {
+  const code = document.getElementById("generatedCode").value;
+  if (!code) { setGenerateStatus("先に編成コードを生成してください。", true); return; }
+  try { await navigator.clipboard.writeText(code); setGenerateStatus("編成コードをコピーしました。"); }
+  catch { setGenerateStatus("コピーに失敗しました。手動でコピーしてください。", true); }
+});
+
+document.getElementById("restoreBtn").addEventListener("click", async () => {
+  try {
+    const values = await decodeStringToValues(document.getElementById("restoreCode").value);
+    restore(values);
+    setRestoreStatus("編成コードを復元しました。");
+  } catch (e) {
+    document.getElementById("restoreResult").innerHTML = "";
+    setRestoreStatus(e.message, true);
+  }
+});
+
+async function initialize() {
+  try {
+    [identityData, egoData] = await Promise.all([loadCsv(CSV_URLS.identity), loadCsv(CSV_URLS.ego)]);
+    identityData = identityData.filter(r => /^\d+$/.test(r.id) && Number(r.id) >= 1000 && Number(r.id) < 13000);
+    egoData = egoData.filter(r => /^\d+$/.test(r.id) && Number(r.id) >= 13000 && Number(r.id) < 25000 && /^[1-5]$/.test(r.rank));
+    identityById = new Map(identityData.map(r => [Number(r.id), r]));
+    egoById = new Map(egoData.map(r => [Number(r.id), r]));
+    makeIdentityGeneration();
+    makeEgoGeneration();
+  } catch (e) {
+    setGenerateStatus(`CSVの読み込みに失敗しました。\n${e.message}`, true);
+  }
+}
+
+initialize();
+</script>
+</body>
+</html>
