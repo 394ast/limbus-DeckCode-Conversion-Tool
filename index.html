@@ -46,12 +46,12 @@ textarea { width:100%; resize:vertical; padding:10px; border:1px solid #aaa; bor
 .restore-identity-group { min-width:0; text-align:center; }
 .restore-identity-content { display:flex; align-items:center; justify-content:center; gap:5px; min-height:100px; }
 .restore-order { font-weight:700; min-width:24px; }
-.restore-identity-image { width:86px; height:auto; }
+.restore-identity-image { width:155px; height:auto; }
 .restore-ego { display:flex; flex-direction:column; gap:8px; }
 .restore-ego-row { display:grid; grid-template-columns:repeat(5, minmax(100px,1fr)); gap:6px; }
-.restore-ego-slot { min-height:86px; display:flex; align-items:center; justify-content:center; border-radius:5px; }
-.restore-ego-slot img { width:72px; height:72px; object-fit:cover; }
-.empty-slot { min-height:86px; }
+.restore-ego-slot { min-height:130px; display:flex; align-items:center; justify-content:center; border-radius:5px; }
+.restore-ego-slot img { width:130px; height:130px; object-fit:cover; }
+.empty-slot { min-height:130px; }
 .small-note { color:#666; font-size:13px; }
 .loading { padding:20px; text-align:center; color:#666; }
 @media (max-width:900px) {
@@ -68,18 +68,18 @@ textarea { width:100%; resize:vertical; padding:10px; border:1px solid #aaa; bor
 <body>
 <main>
 <h1>リンバス編成コード変換ツール</h1>
-<p class="note">現在 https://wikiwiki.jp/lcbwiki/ の人格EGOのid番号を一旦持ってきているのでゲーム内id番号と異なっているというバグが起こっている可能性があります、近日中に確認します<br>https://youtu.be/X05CKPkFdBI?si=OVlXrTkbFeFfwUty を参考に作成しました</p>
+<p class="note"><a href="https://youtu.be/X05CKPkFdBI?si=OVlXrTkbFeFfwUty">編成コードのしくみ</a> を参考に作成しました</p>
 
 <div class="tabs">
-  <button class="tab-button active" data-tab="generate">編成コード生成</button>
-  <button class="tab-button" data-tab="restore">編成コード復元</button>
+  <button class="tab-button active" data-tab="generate">編成コードを生成したい</button>
+  <button class="tab-button" data-tab="restore">編成コードから復元したい</button>
 </div>
 
 <section id="generate" class="panel active">
   <div class="toolbar">
     <label><input type="checkbox" id="recordOrder"> 編成順を記録する</label>
-    <button class="primary" id="generateCodeBtn">編成コードを生成</button>
-    <button id="generateCopyBtn">コードをコピー</button>
+    <button class="primary" id="generateCodeBtn">選択した編成から編成コードを生成</button>
+    <button id="generateCopyBtn">生成したコードをコピー</button>
   </div>
   <textarea id="generatedCode" readonly placeholder="ここに編成コードが表示されます"></textarea>
   
